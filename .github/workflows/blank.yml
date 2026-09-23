@@ -36,4 +36,64 @@ jobs:
       # -----------------------------------------
       # 1. Checkout source code
       # -----------------------------------------
-      - name: 
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------
+      # 2. Setup JDK 21
+      # -----------------------------------------
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # -----------------------------------------
+      # 3. Build and Run Unit Tests (with DB)
+      # -----------------------------------------
+      - name: Build and Test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb
+          SPRING_DATASOURCE_USERNAME: testuser
+          SPRING_DATASOURCE_PASSWORD: testpass
+        run: |
+          mvn clean verify
+
+      # -----------------------------------------
+      # 4. Generate / Verify JaCoCo Coverage
+      # -----------------------------------------
+      - name: Generate JaCoCo Coverage Report
+        run: |
+          mvn jacoco:report
+
+      # -----------------------------------------
+      # 5. Check Code Coverage >= 90%
+      # -----------------------------------------
+      - name: Check Code Coverage
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          import sys
+
+          report = "target/site/jacoco/jacoco.xml"
+
+          try:
+              tree = ET.parse(report)
+          except FileNotFoundError:
+              print("ERROR: JaCoCo report not found")
+              sys.exit(1)
+
+          root = tree.getroot()
+
+          instruction_counter = None
+          for counter in root.findall("counter"):
+              if counter.attrib.get("type") == "INSTRUCTION":
+                  instruction_counter = counter
+                  break
+
+          if instruction_counter is None:
+     
